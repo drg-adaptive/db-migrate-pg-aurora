@@ -74,10 +74,10 @@ export default class AuroraDataApiDriver extends BaseDriver {
     return this.internals.connection;
   }
 
-  async startMigration(cb: any): Bluebird<any> {
+  async startMigration(): Bluebird<any> {
     console.debug(`Starting migration with ${this.internals.notransactions}...`);
     if (!this.internals.notransactions) {
-      return this.startTransaction();
+      await this.startTransaction();
     }
   }
 
@@ -94,10 +94,10 @@ export default class AuroraDataApiDriver extends BaseDriver {
     this.internals.currentTransaction = transactionId;
   }
 
-  async endMigration(cb: any): Bluebird<any> {
+  async endMigration(): Bluebird<any> {
     console.debug(`Finishing migration...`);
     if (!this.internals.notransactions) {
-      return this.commitTransaction();
+      await this.commitTransaction();
     }
   }
 
@@ -125,7 +125,57 @@ export default class AuroraDataApiDriver extends BaseDriver {
       case "blob":
         return "BYTEA";
     }
+
     return super.mapDataType(str);
+  }
+
+  createColumnDef(name: string, spec: any, options: any) {
+    name = this._escapeDDL + name + this._escapeDDL;
+    const type = this.mapDataType(spec.type);
+    const len = spec.length ? `(${spec.length})` : "";
+    const constraints = this.createColumnConstraint(spec, options).constraints;
+
+    return {
+      constraints: [name, type, len, constraints].join(" "),
+    };
+  }
+
+  createColumnConstraint(
+    spec: any,
+    options?: any,
+    tableName?: string,
+    columnName?: string): any {
+    const constraints: Array<string> = [];
+    let cb;
+
+    if (spec.timezone) {
+      constraints.push("WITH TIME ZONE");
+    }
+
+    if (spec.notNull) {
+      constraints.push("NOT NULL");
+    }
+
+    if (spec.defaultValue !== undefined) {
+      constraints.push("DEFAULT");
+      if (typeof spec.defaultValue === "string") {
+        constraints.push(`'${spec.defaultValue}'`);
+      } else if (typeof spec.defaultValue.prep === "string") {
+        constraints.push(String(spec.defaultValue.prep));
+      } else {
+        constraints.push(String(spec.defaultValue));
+      }
+    }
+
+    // keep foreignKey for backward compatible, push to callbacks in the future
+    if (spec.foreignKey) {
+      cb = this.bindForeignKey(tableName, columnName, spec.foreignKey);
+    }
+
+    return {
+      foreignKey: cb,
+      constraints: String(constraints.join(" ")),
+    };
   }
 
   renameTable(tableName: string, newTableName: string): Bluebird<any> {
@@ -313,44 +363,6 @@ export default class AuroraDataApiDriver extends BaseDriver {
       });
   }
 
-  createColumnConstraint(
-    spec: any,
-    options?: any,
-    tableName?: string,
-    columnName?: string): any {
-    const constraints: Array<string> = [];
-    let cb;
-
-    if (spec.timezone) {
-      constraints.push("WITH TIME ZONE");
-    }
-
-    if (spec.notNull) {
-      constraints.push("NOT NULL");
-    }
-
-    if (spec.defaultValue !== undefined) {
-      constraints.push("DEFAULT");
-      if (typeof spec.defaultValue === "string") {
-        constraints.push(`'${spec.defaultValue}'`);
-      } else if (typeof spec.defaultValue.prep === "string") {
-        constraints.push(String(spec.defaultValue.prep));
-      } else {
-        constraints.push(String(spec.defaultValue));
-      }
-    }
-
-    // keep foreignKey for backward compatible, push to callbacks in the future
-    if (spec.foreignKey) {
-      cb = this.bindForeignKey(tableName, columnName, spec.foreignKey);
-    }
-
-    return {
-      foreignKey: cb,
-      constraints: String(constraints.join(" ")),
-    };
-  }
-
   createTable(tableName: string, options: any) {
     console.log("creating table:", tableName);
     let columnSpecs = options;
@@ -405,17 +417,6 @@ export default class AuroraDataApiDriver extends BaseDriver {
 
     let sql = `CREATE TABLE ${ifNotExistsSql} ${this.escapeDDL(tableName)} (${columnDefs.join(", ")}${extensions}${pkSql}) ${tableOptions}`;
     return this.runSql(sql);
-  }
-
-  createColumnDef(name: string, spec: any, options: any) {
-    name = this._escapeDDL + name + this._escapeDDL;
-    const type = this.mapDataType(spec.type);
-    const len = spec.length ? `(${spec.length})` : "";
-    const constraints = this.createColumnConstraint(spec, options).constraints;
-
-    return {
-      constraints: [name, type, len, constraints].join(" "),
-    };
   }
 
   addIndex(
