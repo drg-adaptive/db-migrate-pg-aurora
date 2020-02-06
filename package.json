@@ -1,0 +1,63 @@
+{
+  "name": "db-migrate-pg-aurora",
+  "version": "0.0.1",
+  "description": "A db-migrate driver for postgres aurora serverless.",
+  "main": "dist/index.js",
+  "files": [
+    "dist/*.js"
+  ],
+  "maintainers": [
+    {
+      "name": "Elisha Boozer",
+      "email": "eboozer@teamdrg.com"
+    }
+  ],
+  "scripts": {
+    "test": "jest",
+    "build": "tsc",
+    "postversion": "git push --follow-tags"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/drg-adaptive/db-migrate-pg-aurora.git"
+  },
+  "keywords": [
+    "db-migrate",
+    "db",
+    "database",
+    "migrate",
+    "migration",
+    "database",
+    "driver",
+    "aws",
+    "aurora",
+    "RDS",
+    "postgres"
+  ],
+  "author": "Elisha Boozer <eboozer@teamdrg.com>",
+  "license": "MIT",
+  "bugs": "https://github.com/drg-adaptive/db-migrate-pg-aurora/issues",
+  "homepage": "https://github.com/drg-adaptive/db-migrate-pg-aurora",
+  "dependencies": {
+    "@types/semver": "^7.1.0",
+    "aws-sdk": "^2.612.0",
+    "db-migrate-base": "^2.1.0",
+    "semver": "^7.1.2"
+  },
+  "peerDependencies": {
+    "db-migrate": "^0.11.6"
+  },
+  "devDependencies": {
+    "@types/bluebird": "^3.5.29",
+    "@types/db-migrate-base": "^0.0.6",
+    "@types/jest": "^25.1.1",
+    "db-meta": "^0.5.1",
+    "db-migrate-shared": "^1.2.0",
+    "dotenv": "^8.2.0",
+    "jest": "^25.1.0",
+    "jest-runner-tsc": "^1.6.0",
+    "ts-jest": "^25.2.0",
+    "tsconfig-paths-jest": "^0.0.1",
+    "typescript": "^3.7.5"
+  }
+}
