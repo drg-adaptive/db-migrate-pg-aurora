@@ -52,6 +52,7 @@ export default class AuroraDataApiDriver extends BaseDriver {
   constructor(private internals: IInternalOptions, rdsParams: RDSParams) {
     super(internals);
 
+    console.debug(`Initializing driver...`);
     this._escapeDDL = `"`;
     this._escapeString = "'";
 
@@ -71,16 +72,19 @@ export default class AuroraDataApiDriver extends BaseDriver {
   }
 
   getConnection(): AWS.RDSDataService {
+    console.debug(`Retrieving connection...`);
     return this.internals.connection;
   }
 
   startMigration(cb: CallbackFunction): Bluebird<any> {
+    console.debug(`Starting migration...`);
     if (!this.internals.notransactions) {
       return Promise.cast(this.startTransaction).thenReturn().nodeify(cb);
     }
   }
 
   async startTransaction() {
+    console.debug(`Initializing Transaction...`);
     const { transactionId } = await this.internals.connection
       .beginTransaction({
         resourceArn: this.internals.rdsParams.resourceArn,
@@ -93,12 +97,14 @@ export default class AuroraDataApiDriver extends BaseDriver {
   }
 
   endMigration(cb: CallbackFunction): Bluebird<any> {
+    console.debug(`Finishing migration...`);
     if (!this.internals.notransactions) {
       return Promise.cast(this.commitTransaction).thenReturn().nodeify(cb);
     }
   }
 
   async commitTransaction() {
+    console.debug(`Committing Transaction...`);
     await this.internals.connection
       .commitTransaction({
         resourceArn: this.internals.rdsParams.resourceArn,
@@ -302,8 +308,10 @@ export default class AuroraDataApiDriver extends BaseDriver {
         return this.all(`SELECT table_name FROM information_schema.tables WHERE table_name = '${this.internals.migrationTable}' ${this.schema ? " AND table_schema = '${this.schema}'" : ""}`);
       }).then((result: any) => {
         if (result?.length < 1) {
+          console.debug(`Creating migrations table with ${JSON.stringify(options)}...`);
           return this.createTable(this.internals.migrationTable, options);
         }
+        console.debug("Found existing migrations table, no need to recreate.");
         return Promise.resolve();
       }).nodeify(cb);
   }
@@ -357,7 +365,7 @@ export default class AuroraDataApiDriver extends BaseDriver {
   }
 
   createTable(tableName: string, options: any): Bluebird<any> {
-    console.log(`Creating table: ${tableName}`);
+    console.log(`creating table: ${tableName}`);
     let columnSpecs = options;
     let opts;
 
