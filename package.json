@@ -1,6 +1,6 @@
 {
   "name": "db-migrate-pg-aurora",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "A db-migrate driver for postgres aurora serverless.",
   "main": "dist/index.js",
   "files": [
