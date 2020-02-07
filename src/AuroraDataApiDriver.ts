@@ -1,8 +1,10 @@
 import * as AWS from "aws-sdk";
-import { ColumnSpec, ForeignKeyRules, InternalOptions } from "db-migrate-base";
+import { CallbackFunction, ColumnSpec, ForeignKeyRules, InternalOptions } from "db-migrate-base";
 import Bluebird = require("bluebird");
 import semver = require("semver");
 
+// @ts-ignore
+const Promise = require("bluebird");
 const BaseDriver = require("db-migrate-base");
 
 export interface IInternalOptions extends InternalOptions {
@@ -50,7 +52,6 @@ export default class AuroraDataApiDriver extends BaseDriver {
   constructor(private internals: IInternalOptions, rdsParams: RDSParams) {
     super(internals);
 
-    console.debug(`Initializing driver...`);
     this._escapeDDL = `"`;
     this._escapeString = "'";
 
@@ -70,19 +71,16 @@ export default class AuroraDataApiDriver extends BaseDriver {
   }
 
   getConnection(): AWS.RDSDataService {
-    console.debug(`Retrieving connection...`);
     return this.internals.connection;
   }
 
-  async startMigration(): Bluebird<any> {
-    console.debug(`Starting migration with ${this.internals.notransactions}...`);
+  startMigration(cb: CallbackFunction): Bluebird<any> {
     if (!this.internals.notransactions) {
-      await this.startTransaction();
+      return Promise.cast(this.startTransaction).thenReturn().nodeify(cb);
     }
   }
 
   async startTransaction() {
-    console.debug(`Initializing Transaction...`);
     const { transactionId } = await this.internals.connection
       .beginTransaction({
         resourceArn: this.internals.rdsParams.resourceArn,
@@ -94,15 +92,13 @@ export default class AuroraDataApiDriver extends BaseDriver {
     this.internals.currentTransaction = transactionId;
   }
 
-  async endMigration(): Bluebird<any> {
-    console.debug(`Finishing migration...`);
+  endMigration(cb: CallbackFunction): Bluebird<any> {
     if (!this.internals.notransactions) {
-      await this.commitTransaction();
+      return Promise.cast(this.commitTransaction).thenReturn().nodeify(cb);
     }
   }
 
   async commitTransaction() {
-    console.debug(`Committing Transaction...`);
     await this.internals.connection
       .commitTransaction({
         resourceArn: this.internals.rdsParams.resourceArn,
@@ -233,7 +229,7 @@ export default class AuroraDataApiDriver extends BaseDriver {
     DROP COLUMN IF EXISTS "${columnName}"`);
   }
 
-  createMigrationsTable() {
+  createMigrationsTable(cb: CallbackFunction): Bluebird<any> {
     const options = {
       columns: {
         id: {
@@ -247,6 +243,7 @@ export default class AuroraDataApiDriver extends BaseDriver {
       ifNotExists: true,
     };
 
+    console.debug("Creating migrations table (if necessary)...");
     return this.all("show server_version_num")
       .then((result: any) => {
         if (result && result.length > 0 && result[0].server_version_num) {
@@ -300,20 +297,18 @@ export default class AuroraDataApiDriver extends BaseDriver {
         } else {
           searchPath = `"${this.schema}",${result[0].search_path}`;
         }
-
         return this.all("SET search_path TO " + searchPath);
       }).then(() => {
         return this.all(`SELECT table_name FROM information_schema.tables WHERE table_name = '${this.internals.migrationTable}' ${this.schema ? " AND table_schema = '${this.schema}'" : ""}`);
       }).then((result: any) => {
-        if (result && result.length < 1) {
+        if (result?.length < 1) {
           return this.createTable(this.internals.migrationTable, options);
-        } else {
-          return Promise.resolve();
         }
-      });
+        return Promise.resolve();
+      }).nodeify(cb);
   }
 
-  createSeedsTable() {
+  createSeedsTable(cb: CallbackFunction): Bluebird<any> {
     const options = {
       columns: {
         id: {
@@ -353,18 +348,16 @@ export default class AuroraDataApiDriver extends BaseDriver {
         return this.all("SET search_path TO " + searchPath);
       }).then(() => {
         return this.all(`SELECT table_name FROM information_schema.tables WHERE table_name = '${this.internals.seedTable}' ${this.schema ? " AND table_schema = '${this.schema}'" : ""}`);
-      })
-      .then((result: any) => {
-        if (result && result.length < 1) {
+      }).then((result: any) => {
+        if (result?.length < 1) {
           return this.createTable(this.internals.seedTable, options);
-        } else {
-          return Promise.resolve();
         }
-      });
+        return Promise.resolve();
+      }).nodeify(cb);
   }
 
-  createTable(tableName: string, options: any) {
-    console.log("creating table:", tableName);
+  createTable(tableName: string, options: any): Bluebird<any> {
+    console.log(`Creating table: ${tableName}`);
     let columnSpecs = options;
     let opts;
 
@@ -415,7 +408,7 @@ export default class AuroraDataApiDriver extends BaseDriver {
       columnDefs.push(constraint.constraints);
     }
 
-    let sql = `CREATE TABLE ${ifNotExistsSql} ${this.escapeDDL(tableName)} (${columnDefs.join(", ")}${extensions}${pkSql}) ${tableOptions}`;
+    const sql = `CREATE TABLE ${ifNotExistsSql} ${this.escapeDDL(tableName)} (${columnDefs.join(", ")}${extensions}${pkSql}) ${tableOptions}`;
     return this.runSql(sql);
   }
 
@@ -661,7 +654,8 @@ ALTER COLUMN "${columnName}" TYPE ${this.mapDataType(columnSpec.type)} ${using}`
     });
   }
 
-  async all(sql: string, callback?: Function): Bluebird<any> {
+  // @ts-ignore
+  async all(sql: string, callback?: Function): Bluebird<any> | any {
     let result;
     let error;
     try {
